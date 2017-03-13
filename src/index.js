@@ -1,5 +1,8 @@
-import emoji from './emoji.js'
+import 'babel-polyfill'
 import XRegExp from 'xregexp'
+import emoji from './emoji'
+
+/* eslint-disable no-template-curly-in-string */
 
 const expandEmoji = (text, customEmoji) => {
   const allEmoji = Object.assign({}, emoji, customEmoji)
@@ -151,6 +154,6 @@ const escapeForSlackWithMarkdown = (text, customEmoji, users) => {
 }
 
 module.exports = {
-  'escapeForSlack': escapeForSlack,
-  'escapeForSlackWithMarkdown': escapeForSlackWithMarkdown
+  escapeForSlack: escapeForSlack,
+  escapeForSlackWithMarkdown: escapeForSlackWithMarkdown
 }
