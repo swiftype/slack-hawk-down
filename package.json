@@ -1,6 +1,6 @@
 {
   "name": "slack-hawk-down",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Render Slack flavored markdown as HTML",
   "main": "dist/bundle.js",
   "scripts": {
@@ -27,7 +27,6 @@
   },
   "homepage": "https://github.com/swiftype/slack-hawk-down#readme",
   "dependencies": {
-    "babel-polyfill": "^6.23.0",
     "xregexp": "^3.1.1"
   },
   "devDependencies": {

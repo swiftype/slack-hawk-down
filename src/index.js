@@ -1,4 +1,3 @@
-import 'babel-polyfill'
 import XRegExp from 'xregexp'
 import emoji from './emoji'
 
