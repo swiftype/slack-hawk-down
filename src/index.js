@@ -21,7 +21,7 @@ const expandEmoji = (text, customEmoji) => {
 
     if (key && emojiValue) {
       if (emojiValue.match(/https?:\/\/\S+/)) {
-        return `<img alt=${originalKey} src=${emojiValue} class="slack_emoji" />`
+        return `<img alt="${originalKey}" src="${emojiValue}" class="slack_emoji" />`
       }
       return emojiValue.split('-').map((emojiCode) => (`&#x${emojiCode}`)).join('')
     }
@@ -114,43 +114,69 @@ const expandText = (text) => {
 
 // https://api.slack.com/docs/message-formatting
 const userMentionRegexp = XRegExp('<@(?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?>', 'ng')
+const channelMentionRegexp = XRegExp('<#(?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?>', 'ng')
 const linkRegexp = XRegExp('<(?<linkUrl>https?:[^|>]+)(\\|(?<linkHtml>[^>]+))?>', 'ng')
-const mailToRegexp = XRegExp('<(?<mailTo>mailto:[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
+const mailToRegexp = XRegExp('<mailto:(?<mailTo>[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
+const subteamCommandRegexp = XRegExp('<!subteam\\^(?<subteamID>S[^|>]+)(\\|(?<subteamName>[^>]+))?>', 'ng')
 const commandRegexp = XRegExp('<!(?<commandLiteral>[^|>]+)(\\|(?<commandName>[^>]+))?>', 'ng')
 const knownCommands = ['here', 'channel', 'group', 'everyone']
 
 const replaceUserName = (users) => ((match) => {
-  if (match.userName) {
-    return (`@${match.userName}`)
-  }
-  const userName = match.userID && users && users[match.userID]
+  const userName = match.userName || (match.userID && users && users[match.userID])
   if (userName) {
-    return `@${userName}`
+    return (`@${userName}`)
   }
   return match.toString()
 })
 
-const escapeForSlack = (text, customEmoji, users) => {
+const replaceChannelName = (channels) => ((match) => {
+  const channelName = match.channelName || (match.channelID && channels && channels[match.channelID])
+  if (channelName) {
+    return (`#${channelName}`)
+  }
+  return match.toString()
+})
+
+const replaceUserGroupName = (usergroups) => ((match) => {
+  const userGroupName = match.subteamName || (match.subteamID && usergroups && usergroups[match.subteamID])
+  if (userGroupName) {
+    return `${userGroupName}`
+  }
+  return match.toString()
+})
+
+const escapeForSlack = (text, options = {}) => {
+  const customEmoji = options.customEmoji || {}
+  const users = options.users || {}
+  const channels = options.channels || {}
+  const usergroups = options.usergroups || {}
+  const markdown = options.markdown || false
+
+  const expandedText = markdown ? expandText(text) : text
   return expandEmoji(
-    XRegExp.replaceEach(text, [
+    XRegExp.replaceEach(expandedText, [
       [userMentionRegexp, replaceUserName(users)],
+      [channelMentionRegexp, replaceChannelName(channels)],
       [linkRegexp, ((match) => (`<a href="${match.linkUrl}" target="_blank" rel="noopener noreferrer">${match.linkHtml || match.linkUrl}</a>`))],
       [mailToRegexp, ((match) => (`<a href="mailto:${match.mailTo}" target="_blank" rel="noopener noreferrer">${match.mailToName || match.mailTo}</a>`))],
+      [subteamCommandRegexp, replaceUserGroupName(usergroups)],
       [commandRegexp, ((match) => {
-        if (match.commandName) {
-          return match.commandName
+        if (match.commandLiteral && match.commandLiteral.startsWith('subteam')) {
+          return match.toString()
+        } else if (match.commandName) {
+          return `<${match.commandName}>`
         } else if (knownCommands.includes(match.commandLiteral)) {
           return `@${match.commandLiteral}`
         }
-        return match.commandLiteral
+        return `<${match.commandLiteral}>`
       })]
     ]),
     customEmoji
   )
 }
 
-const escapeForSlackWithMarkdown = (text, customEmoji, users) => {
-  return escapeForSlack(expandText(text), emoji, users)
+const escapeForSlackWithMarkdown = (text, options = {}) => {
+  return escapeForSlack(text, Object.assign({}, options, { markdown: true }))
 }
 
 module.exports = {
