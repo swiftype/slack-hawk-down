@@ -1,5 +1,7 @@
 'use strict';
 
+require('babel-polyfill');
+
 global.chai = require('chai');
 global.chai.should();
 

@@ -1,13 +1,9 @@
-import 'babel-polyfill'
 import { escapeForSlackWithMarkdown } from '../src/index.js'
-
-const customEmoji = {}
-const users = {}
 
 describe('markdown', () => {
   describe('code multiline', () => {
     it('should render an element', () => {
-      escapeForSlackWithMarkdown('```this is a code multiline```', customEmoji, users).should.equal('<div class="slack_code">this is a code multiline</div>')
+      escapeForSlackWithMarkdown('```this is a code multiline```').should.equal('<div class="slack_code">this is a code multiline</div>')
     })
   })
 
