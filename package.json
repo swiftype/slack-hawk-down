@@ -1,6 +1,6 @@
 {
   "name": "slack-hawk-down",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Render Slack flavored markdown as HTML",
   "main": "dist/bundle.js",
   "scripts": {
