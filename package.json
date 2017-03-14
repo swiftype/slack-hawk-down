@@ -6,7 +6,7 @@
   "scripts": {
     "update-emoji": "node updateEmoji.js",
     "compile": "babel src --presets babel-preset-es2015 --out-dir dist",
-    "build": "npm run update-emoji && npm run compile && browserify dist/index.js -o dist/bundle.js",
+    "build": "npm run update-emoji && npm run compile && browserify dist/index.js --standalone slack-hawk-down -o dist/bundle.js",
     "test": "npm run update-emoji && mocha --compilers js:babel-core/register",
     "eslint": "eslint src/index.js",
     "precommit": "npm run eslint",
