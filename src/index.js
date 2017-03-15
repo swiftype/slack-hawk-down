@@ -151,7 +151,7 @@ const escapeForSlack = (text, options = {}) => {
   const usergroups = options.usergroups || {}
   const markdown = options.markdown || false
 
-  const expandedText = markdown ? expandText(text) : text
+  const expandedText = markdown ? expandText(text || '') : text || ''
   return expandEmoji(
     XRegExp.replaceEach(expandedText, [
       [userMentionRegexp, replaceUserName(users)],
