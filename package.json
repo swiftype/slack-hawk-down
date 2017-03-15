@@ -10,7 +10,7 @@
     "test": "npm run update-emoji && mocha --compilers js:babel-core/register",
     "eslint": "eslint src/index.js",
     "precommit": "npm run eslint",
-    "prepackage": "npm run precommit && npm test && npm run build"
+    "prepublish": "npm run precommit && npm test && npm run build"
   },
   "repository": {
     "type": "git",
