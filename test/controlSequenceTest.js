@@ -52,11 +52,11 @@ describe('control sequences', () => {
   describe('commands', () => {
     describe('known commands', () => {
       ['here', 'channel', 'group', 'everyone'].map((command) => {
-        it(`when @${command} should render as @${command}`, () => {
+        it(`when <!${command}> should render as @${command}`, () => {
           escapeForSlack(`<!${command}>`).should.equal(`@${command}`)
         })
 
-        it(`when @${command} should not render as the label`, () => {
+        it(`when <!${command}> should not render as the label`, () => {
           escapeForSlack(`<!${command}|something_else>`).should.not.equal('@something_else')
         })
       })
@@ -76,7 +76,6 @@ describe('control sequences', () => {
       })
     })
 
-
     describe('unknown commands', () => {
       it('should render the label if present', () => {
         escapeForSlack('<!foo|bar>').should.equal('<bar>')
@@ -85,6 +84,12 @@ describe('control sequences', () => {
       it('should render as the literal if present', () => {
         escapeForSlack('<!foo>').should.equal('<foo>')
       })
+    })
+  })
+
+  describe('ordering', () => {
+    it('should render <!here|@here> <https://swiftype.com>', () => {
+      escapeForSlack('<!here|@here> <https://swiftype.com>').should.equal('@here <a href="https://swiftype.com" target="_blank" rel="noopener noreferrer">https://swiftype.com</a>')
     })
   })
 })

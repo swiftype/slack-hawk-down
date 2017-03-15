@@ -162,10 +162,10 @@ const escapeForSlack = (text, options = {}) => {
       [commandRegexp, ((match) => {
         if (match.commandLiteral && match.commandLiteral.startsWith('subteam')) {
           return match.toString()
-        } else if (match.commandName) {
-          return `<${match.commandName}>`
         } else if (knownCommands.includes(match.commandLiteral)) {
           return `@${match.commandLiteral}`
+        } else if (match.commandName) {
+          return `<${match.commandName}>`
         }
         return `<${match.commandLiteral}>`
       })]
