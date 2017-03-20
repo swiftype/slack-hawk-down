@@ -5,6 +5,10 @@ describe('markdown', () => {
     it('should render an element', () => {
       escapeForSlackWithMarkdown('```this is a code multiline```').should.equal('<div class="slack_code">this is a code multiline</div>')
     })
+
+    it('should convert newlines', () => {
+      escapeForSlackWithMarkdown('```this is a code multiline\nwith newlines```').should.equal('<div class="slack_code">this is a code multiline<br>with newlines</div>')
+    })
   })
 
   describe('code inline', () => {
@@ -34,6 +38,10 @@ describe('markdown', () => {
   describe('block quote', () => {
     it('should render an element', () => {
       escapeForSlackWithMarkdown('&gt;&gt;&gt;this is a block quote').should.equal('<div class="slack_block">this is a block quote</div>')
+    })
+
+    it('should replace newlines', () => {
+      escapeForSlackWithMarkdown('&gt;&gt;&gt;this is a block quote\nwith newlines').should.equal('<div class="slack_block">this is a block quote<br>with newlines</div>')
     })
   })
 

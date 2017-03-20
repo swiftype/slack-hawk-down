@@ -91,6 +91,13 @@ const replaceFunctionForSlackdownPattern = (slackdownClass, slackdownEl = 'span'
   return `${match.capturedCodeBlocks}<${slackdownEl} class="${slackdownClass}">${match.capturedMarkdown}</${slackdownEl}>`
 })
 
+const replaceNewlineFunction = (replaceFn) => ((match) => (
+  replaceFn(Object.assign({}, match, { capturedMarkdown: match.capturedMarkdown && match.capturedMarkdown.replace('\n', '<br>') }))
+))
+const replaceFunctionForCodeDiv = (match) => {
+  return `${match.previousDelimiter}<div class="slack_code">${match.capturedMarkdown}</div>`
+}
+
 const codeDivRegexp = XRegExp(`${closingDelimiterPatternString}\`\`\`(?<capturedMarkdown>${anythingPatternString})\`\`\`${openingDelimiterLookaheadPatternString}`, 'nsg')
 const codeSpanRegexp = buildSlackdownPattern('`')
 const boldSpanRegexp = buildSlackdownPattern('*')
@@ -101,12 +108,12 @@ const blockSpanRegexp = XRegExp(`${codePatternCapturePatternString}&gt;\\s?(${ex
 
 const expandText = (text) => {
   return XRegExp.replaceEach(text, [
-    [codeDivRegexp, '${previousDelimiter}<div class="slack_code">${capturedMarkdown}</div>'],
+    [codeDivRegexp, replaceNewlineFunction(replaceFunctionForCodeDiv)],
     [codeSpanRegexp, replaceFunctionForSlackdownPattern('slack_code')],
     [boldSpanRegexp, replaceFunctionForSlackdownPattern('slack_bold')],
     [strikeSpanRegexp, replaceFunctionForSlackdownPattern('slack_strikethrough')],
     [italicSpanRegexp, replaceFunctionForSlackdownPattern('slack_italics')],
-    [blockDivRegexp, replaceFunctionForSlackdownPattern('slack_block', 'div')],
+    [blockDivRegexp, replaceNewlineFunction(replaceFunctionForSlackdownPattern('slack_block', 'div'))],
     [blockSpanRegexp, replaceFunctionForSlackdownPattern('slack_block')]
   ])
 }
