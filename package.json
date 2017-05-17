@@ -5,6 +5,7 @@
   "main": "dist/bundle.js",
   "scripts": {
     "update-emoji": "node updateEmoji.js",
+    "print-patterns": "npm run build && node printBuiltSlackHawkDownRegExps.js",
     "compile": "babel src --presets babel-preset-es2015 --out-dir dist",
     "build": "npm run update-emoji && npm run compile && browserify dist/index.js --standalone slack-hawk-down -o dist/bundle.js",
     "test": "npm run update-emoji && mocha --compilers js:babel-core/register",
@@ -27,7 +28,7 @@
   },
   "homepage": "https://github.com/swiftype/slack-hawk-down#readme",
   "dependencies": {
-    "xregexp": "^3.1.1"
+    "xregexp": "^3.2.0"
   },
   "devDependencies": {
     "babel-core": "^6.23.0",
@@ -41,7 +42,8 @@
     "eslint-plugin-import": "^2.2.0",
     "eslint-plugin-jsx-a11y": "^4.0.0",
     "eslint-plugin-react": "^6.10.0",
-    "husky": "^0.13.2"
+    "husky": "^0.13.2",
+    "mocha": "^3.4.1"
   },
   "eslintConfig": {
     "extends": "airbnb",
@@ -73,6 +75,7 @@
       "newline-per-chained-call": 0,
       "new-cap": 0,
       "no-multi-spaces": 0,
+      "no-mixed-operators": 0,
       "arrow-parens": [
         2,
         "always"

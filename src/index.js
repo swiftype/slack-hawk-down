@@ -51,6 +51,10 @@ const atLeastOneCodePatternString = `(${closedCodePatternString})+?`
 const codePatternCapturePatternString = `(?<capturedCodeBlocks>${anyClosedCodePatternString}(?<beforeMarkdown>${anythingPatternString}))`
 const openCodePatternString = `${anyClosedCodePatternString}(?=(?<hangingCodeTag>${anythingPatternString}(${codeSpanOpeningPatternString}|${codeDivOpeningPatternString})))\\k<hangingCodeTag>`
 
+const openCodeRegExp = XRegExp.cache(openCodePatternString)
+const atLeastOneCodeRegExp = XRegExp.cache(atLeastOneCodePatternString)
+const trailingClosingDelimiterRegExp = XRegExp.cache(trailingClosingDelimiterPatternString)
+
 // Anatomy of a slackdown regex
 // (?<capturedCodeBlocks>)(?<beforeMarkdown>)(openingDelimiterGroup)(?<capturedMarkdown>)(closingDelimiterGroup)
 //
@@ -75,17 +79,23 @@ const buildSlackdownPattern = (delimiter, spacePadded = false, excludingSelf = t
   const spacePaddingPatternString = spacePadded ? '\\s*?' : ''
   const prefixDelimiterPatternString = `${escapedDelimiter}${spacePaddingPatternString}`
   const postfixDelimiterPatternString = `${spacePaddingPatternString}${escapedDelimiter}${openingDelimiterLookaheadPatternString}`
-  const markdownCapturePatternString = excludingSelf ? excludingCharacterPatternString(escapedDelimiter) : '(?<capturedMarkdown>.*?)'
-  return XRegExp(
-    `${codePatternCapturePatternString}${prefixDelimiterPatternString}${markdownCapturePatternString}${postfixDelimiterPatternString}`,
+  const markdownCapturePatternString = excludingSelf ? excludingCharacterPatternString(escapedDelimiter) : `(?<capturedMarkdown>${anythingPatternString})`
+  return XRegExp.build(
+    '{{codePatternCapturePattern}}{{prefixDelimiterPattern}}{{markdownCapturePattern}}{{postfixDelimiterPattern}}',
+    {
+      codePatternCapturePattern: codePatternCapturePatternString,
+      prefixDelimiterPattern: prefixDelimiterPatternString,
+      markdownCapturePattern: markdownCapturePatternString,
+      postfixDelimiterPattern: postfixDelimiterPatternString
+    },
     'nsg'
   )
 }
 
 const replaceFunctionForSlackdownPattern = (slackdownClass, slackdownEl = 'span') => ((match) => {
-  if (XRegExp.test(match.capturedCodeBlocks, XRegExp(openCodePatternString)) ||
-      XRegExp.test(match.capturedMarkdown, XRegExp(atLeastOneCodePatternString)) ||
-      (match.beforeMarkdown.length && !XRegExp.test(match.beforeMarkdown, XRegExp(trailingClosingDelimiterPatternString)))) {
+  if (XRegExp.test(match.capturedCodeBlocks, openCodeRegExp) ||
+      XRegExp.test(match.capturedMarkdown, atLeastOneCodeRegExp) ||
+      (match.beforeMarkdown.length && !XRegExp.test(match.beforeMarkdown, trailingClosingDelimiterRegExp))) {
     return match.toString()
   }
   return `${match.capturedCodeBlocks}<${slackdownEl} class="${slackdownClass}">${match.capturedMarkdown}</${slackdownEl}>`
@@ -98,33 +108,33 @@ const replaceFunctionForCodeDiv = (match) => {
   return `${match.previousDelimiter}<div class="slack_code">${match.capturedMarkdown}</div>`
 }
 
-const codeDivRegexp = XRegExp(`${closingDelimiterPatternString}\`\`\`(?<capturedMarkdown>${anythingPatternString})\`\`\`${openingDelimiterLookaheadPatternString}`, 'nsg')
-const codeSpanRegexp = buildSlackdownPattern('`')
-const boldSpanRegexp = buildSlackdownPattern('*')
-const strikeSpanRegexp = buildSlackdownPattern('~')
-const italicSpanRegexp = buildSlackdownPattern('_', true, false)
-const blockDivRegexp = XRegExp(`${codePatternCapturePatternString}(&gt;){3}(?<capturedMarkdown>${anythingPatternString})$`, 'nsg')
-const blockSpanRegexp = XRegExp(`${codePatternCapturePatternString}&gt;\\s?(${excludingCharacterPatternString('\\n')}(\\n?))`, 'nsg')
+const codeDivRegExp = XRegExp.cache(`${closingDelimiterPatternString}\`\`\`(?<capturedMarkdown>${anythingPatternString})\`\`\`${openingDelimiterLookaheadPatternString}`, 'nsg')
+const codeSpanRegExp = buildSlackdownPattern('`')
+const boldSpanRegExp = buildSlackdownPattern('*')
+const strikeSpanRegExp = buildSlackdownPattern('~')
+const italicSpanRegExp = buildSlackdownPattern('_', true, false)
+const blockDivRegExp = XRegExp.cache(`${codePatternCapturePatternString}(&gt;){3}(?<capturedMarkdown>${anythingPatternString})$`, 'nsg')
+const blockSpanRegExp = XRegExp.cache(`${codePatternCapturePatternString}&gt;\\s?(${excludingCharacterPatternString('\\n')}(\\n?))`, 'nsg')
 
 const expandText = (text) => {
   return XRegExp.replaceEach(text, [
-    [codeDivRegexp, replaceNewlineFunction(replaceFunctionForCodeDiv)],
-    [codeSpanRegexp, replaceFunctionForSlackdownPattern('slack_code')],
-    [boldSpanRegexp, replaceFunctionForSlackdownPattern('slack_bold')],
-    [strikeSpanRegexp, replaceFunctionForSlackdownPattern('slack_strikethrough')],
-    [italicSpanRegexp, replaceFunctionForSlackdownPattern('slack_italics')],
-    [blockDivRegexp, replaceNewlineFunction(replaceFunctionForSlackdownPattern('slack_block', 'div'))],
-    [blockSpanRegexp, replaceFunctionForSlackdownPattern('slack_block')]
+    [codeDivRegExp, replaceNewlineFunction(replaceFunctionForCodeDiv)],
+    [codeSpanRegExp, replaceFunctionForSlackdownPattern('slack_code')],
+    [boldSpanRegExp, replaceFunctionForSlackdownPattern('slack_bold')],
+    [strikeSpanRegExp, replaceFunctionForSlackdownPattern('slack_strikethrough')],
+    [italicSpanRegExp, replaceFunctionForSlackdownPattern('slack_italics')],
+    [blockDivRegExp, replaceNewlineFunction(replaceFunctionForSlackdownPattern('slack_block', 'div'))],
+    [blockSpanRegExp, replaceFunctionForSlackdownPattern('slack_block')]
   ])
 }
 
 // https://api.slack.com/docs/message-formatting
-const userMentionRegexp = XRegExp('<@(?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?>', 'ng')
-const channelMentionRegexp = XRegExp('<#(?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?>', 'ng')
-const linkRegexp = XRegExp('<(?<linkUrl>https?:[^|>]+)(\\|(?<linkHtml>[^>]+))?>', 'ng')
-const mailToRegexp = XRegExp('<mailto:(?<mailTo>[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
-const subteamCommandRegexp = XRegExp('<!subteam\\^(?<subteamID>S[^|>]+)(\\|(?<subteamName>[^>]+))?>', 'ng')
-const commandRegexp = XRegExp('<!(?<commandLiteral>[^|>]+)(\\|(?<commandName>[^>]+))?>', 'ng')
+const userMentionRegExp = XRegExp.cache('<@(?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?>', 'ng')
+const channelMentionRegExp = XRegExp.cache('<#(?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?>', 'ng')
+const linkRegExp = XRegExp.cache('<(?<linkUrl>https?:[^|>]+)(\\|(?<linkHtml>[^>]+))?>', 'ng')
+const mailToRegExp = XRegExp.cache('<mailto:(?<mailTo>[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
+const subteamCommandRegExp = XRegExp.cache('<!subteam\\^(?<subteamID>S[^|>]+)(\\|(?<subteamName>[^>]+))?>', 'ng')
+const commandRegExp = XRegExp.cache('<!(?<commandLiteral>[^|>]+)(\\|(?<commandName>[^>]+))?>', 'ng')
 const knownCommands = ['here', 'channel', 'group', 'everyone']
 
 const replaceUserName = (users) => ((match) => {
@@ -161,12 +171,12 @@ const escapeForSlack = (text, options = {}) => {
   const expandedText = markdown ? expandText(text || '') : text || ''
   return expandEmoji(
     XRegExp.replaceEach(expandedText, [
-      [userMentionRegexp, replaceUserName(users)],
-      [channelMentionRegexp, replaceChannelName(channels)],
-      [linkRegexp, ((match) => (`<a href="${match.linkUrl}" target="_blank" rel="noopener noreferrer">${match.linkHtml || match.linkUrl}</a>`))],
-      [mailToRegexp, ((match) => (`<a href="mailto:${match.mailTo}" target="_blank" rel="noopener noreferrer">${match.mailToName || match.mailTo}</a>`))],
-      [subteamCommandRegexp, replaceUserGroupName(usergroups)],
-      [commandRegexp, ((match) => {
+      [userMentionRegExp, replaceUserName(users)],
+      [channelMentionRegExp, replaceChannelName(channels)],
+      [linkRegExp, ((match) => (`<a href="${match.linkUrl}" target="_blank" rel="noopener noreferrer">${match.linkHtml || match.linkUrl}</a>`))],
+      [mailToRegExp, ((match) => (`<a href="mailto:${match.mailTo}" target="_blank" rel="noopener noreferrer">${match.mailToName || match.mailTo}</a>`))],
+      [subteamCommandRegExp, replaceUserGroupName(usergroups)],
+      [commandRegExp, ((match) => {
         if (match.commandLiteral && match.commandLiteral.startsWith('subteam')) {
           return match.toString()
         } else if (knownCommands.includes(match.commandLiteral)) {
@@ -185,7 +195,29 @@ const escapeForSlackWithMarkdown = (text, options = {}) => {
   return escapeForSlack(text, Object.assign({}, options, { markdown: true }))
 }
 
+const buildSlackHawkDownRegExps = () => {
+  return {
+    openCodeRegExp: openCodeRegExp,
+    atLeastOneCodeRegExp: atLeastOneCodeRegExp,
+    trailingClosingDelimiterRegExp: trailingClosingDelimiterRegExp,
+    codeDivRegExp: codeDivRegExp,
+    codeSpanRegExp: codeSpanRegExp,
+    boldSpanRegExp: boldSpanRegExp,
+    strikeSpanRegExp: strikeSpanRegExp,
+    italicSpanRegExp: italicSpanRegExp,
+    blockDivRegExp: blockDivRegExp,
+    blockSpanRegExp: blockSpanRegExp,
+    userMentionRegExp: userMentionRegExp,
+    channelMentionRegExp: channelMentionRegExp,
+    linkRegExp: linkRegExp,
+    mailToRegExp: mailToRegExp,
+    subteamCommandRegExp: subteamCommandRegExp,
+    commandRegExp: commandRegExp
+  }
+}
+
 module.exports = {
   escapeForSlack: escapeForSlack,
-  escapeForSlackWithMarkdown: escapeForSlackWithMarkdown
+  escapeForSlackWithMarkdown: escapeForSlackWithMarkdown,
+  buildSlackHawkDownRegExps: buildSlackHawkDownRegExps
 }
