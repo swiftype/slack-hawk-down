@@ -28,103 +28,26 @@ const expandEmoji = (text, customEmoji) => {
   }))
 }
 
-const excludingCharacterPatternString = (character) => (`(?<capturedMarkdown>[^${character}]+)`)
-const closingDelimiterPatternString = '(?<previousDelimiter>^|\\s|[*_~>`]|`{3})'
-const trailingClosingDelimiterPatternString = `${closingDelimiterPatternString}$`
-const openingDelimiterLookaheadPatternString = '(?=($|\\s|[*_~<]|`{3}))'
-// The XRegExp flag s allows . to also match whitespace and newline characters
-const anythingPatternString = '.*?'
-const codeSpanOpeningPatternString = '<span class="slack_code">'
-const codeSpanClosingPatternString = '</span>'
+const closingDivPatternString = '</div>'
+const closingSpanPatternString = '</span>'
 const codeDivOpeningPatternString = '<div class="slack_code">'
-const codeDivClosingPatternString = '</div>'
-const closedCodeSpanPatternString = `${codeSpanOpeningPatternString}(?=(?<closingCodeSpan>${anythingPatternString}${codeSpanClosingPatternString}))\\k<closingCodeSpan>`
-const closedCodeDivPatternString = `${codeDivOpeningPatternString}(?=(?<closingCodeDiv>${anythingPatternString}${codeDivClosingPatternString}))\\k<closingCodeDiv>`
-
-// Use atomic capture groups and lazy quantifiers to prevent excessive backtracing
-// To match a closed set of code block tags, the regex will walk forward after an opening tag until it finds
-// a matching closing tag and will not allow backtracing beyond that point
-const closedCodePatternString = `${closedCodeSpanPatternString}|${closedCodeDivPatternString}`
-// Greedily capture as many code blocks as possible in this pattern
-const anyClosedCodePatternString = `(${closedCodePatternString})*`
-const atLeastOneCodePatternString = `(${closedCodePatternString})+?`
-const codePatternCapturePatternString = `(?<capturedCodeBlocks>${anyClosedCodePatternString}(?<beforeMarkdown>${anythingPatternString}))`
-const openCodePatternString = `${anyClosedCodePatternString}(?=(?<hangingCodeTag>${anythingPatternString}(${codeSpanOpeningPatternString}|${codeDivOpeningPatternString})))\\k<hangingCodeTag>`
-
-// Anatomy of a slackdown regex
-// (?<capturedCodeBlocks>)(?<beforeMarkdown>)(openingDelimiterGroup)(?<capturedMarkdown>)(closingDelimiterGroup)
-//
-// - `capturedCodeBlocks` is the greedy set of all <div|span class="slack_code"></div|span> elements
-//   They do not have to be matching, but will normally be checked using `openCodePatternString` to check
-//   if there is an unmatched opening code block when the delimiter occurs
-// - `beforeMarkdown` is the captured set of all characters between the occurrence of any code blocks
-//   and the opening delimiter being examined. This must be checked to ensure the delimiter is not in the
-//   middle of a word. Keep in mind that being at the end of a closed code block is still a valid delimiter
-//   location
-// - `openingDelimiterGroup` contains the opening delimiter and option space padding that might occur between
-//   the delimiter and beginning of the elements to wrapped in a markdown element
-// - `capturedMarkdown` the elements to be wrapped in a markdown element
-// - `closingDelimiterGroup` contains the optional space padding that might occur between `capturedMarkdown`
-//    and the closing delimiter. This is checked with a lookahead group to verify the closing delimiter is
-//    not in the middle of a word
-
-// Explicitly only use named capture groups instead of indexed backreferences to improve performance
-// and maintainability using the XRegExp flag n
-const buildSlackdownPattern = (delimiter, spacePadded = false, excludingSelf = true) => {
-  const escapedDelimiter = XRegExp.escape(delimiter)
-  const spacePaddingPatternString = spacePadded ? '\\s*?' : ''
-  const prefixDelimiterPatternString = `${escapedDelimiter}${spacePaddingPatternString}`
-  const postfixDelimiterPatternString = `${spacePaddingPatternString}${escapedDelimiter}${openingDelimiterLookaheadPatternString}`
-  const markdownCapturePatternString = excludingSelf ? excludingCharacterPatternString(escapedDelimiter) : '(?<capturedMarkdown>.*?)'
-  return XRegExp(
-    `${codePatternCapturePatternString}${prefixDelimiterPatternString}${markdownCapturePatternString}${postfixDelimiterPatternString}`,
-    'nsg'
-  )
-}
-
-const replaceFunctionForSlackdownPattern = (slackdownClass, slackdownEl = 'span') => ((match) => {
-  if (XRegExp.test(match.capturedCodeBlocks, XRegExp(openCodePatternString)) ||
-      XRegExp.test(match.capturedMarkdown, XRegExp(atLeastOneCodePatternString)) ||
-      (match.beforeMarkdown.length && !XRegExp.test(match.beforeMarkdown, XRegExp(trailingClosingDelimiterPatternString)))) {
-    return match.toString()
-  }
-  return `${match.capturedCodeBlocks}<${slackdownEl} class="${slackdownClass}">${match.capturedMarkdown}</${slackdownEl}>`
-})
-
-const replaceNewlineFunction = (replaceFn) => ((match) => (
-  replaceFn(Object.assign({}, match, { capturedMarkdown: match.capturedMarkdown && match.capturedMarkdown.replace('\n', '<br>') }))
-))
-const replaceFunctionForCodeDiv = (match) => {
-  return `${match.previousDelimiter}<div class="slack_code">${match.capturedMarkdown}</div>`
-}
-
-const codeDivRegexp = XRegExp(`${closingDelimiterPatternString}\`\`\`(?<capturedMarkdown>${anythingPatternString})\`\`\`${openingDelimiterLookaheadPatternString}`, 'nsg')
-const codeSpanRegexp = buildSlackdownPattern('`')
-const boldSpanRegexp = buildSlackdownPattern('*')
-const strikeSpanRegexp = buildSlackdownPattern('~')
-const italicSpanRegexp = buildSlackdownPattern('_', true, false)
-const blockDivRegexp = XRegExp(`${codePatternCapturePatternString}(&gt;){3}(?<capturedMarkdown>${anythingPatternString})$`, 'nsg')
-const blockSpanRegexp = XRegExp(`${codePatternCapturePatternString}&gt;\\s?(${excludingCharacterPatternString('\\n')}(\\n?))`, 'nsg')
-
-const expandText = (text) => {
-  return XRegExp.replaceEach(text, [
-    [codeDivRegexp, replaceNewlineFunction(replaceFunctionForCodeDiv)],
-    [codeSpanRegexp, replaceFunctionForSlackdownPattern('slack_code')],
-    [boldSpanRegexp, replaceFunctionForSlackdownPattern('slack_bold')],
-    [strikeSpanRegexp, replaceFunctionForSlackdownPattern('slack_strikethrough')],
-    [italicSpanRegexp, replaceFunctionForSlackdownPattern('slack_italics')],
-    [blockDivRegexp, replaceNewlineFunction(replaceFunctionForSlackdownPattern('slack_block', 'div'))],
-    [blockSpanRegexp, replaceFunctionForSlackdownPattern('slack_block')]
-  ])
-}
+const codeSpanOpeningPatternString = '<span class="slack_code">'
+const boldOpeningPatternString = '<span class="slack_bold">'
+const strikethroughOpeningPatternString = '<span class="slack_strikethrough">'
+const italicOpeningPatternString = '<span class="slack_italics">'
+const blockDivOpeningPatternString = '<div class="slack_block">'
+const blockSpanOpeningPatternString = '<span class="slack_block">'
+const lineBreakTagLiteral = '<br>'
+const newlineRegExp = XRegExp.cache('\\n', 'nsg')
+const whitespaceRegExp = XRegExp.cache('\\s', 'ns')
 
 // https://api.slack.com/docs/message-formatting
-const userMentionRegexp = XRegExp('<@(?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?>', 'ng')
-const channelMentionRegexp = XRegExp('<#(?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?>', 'ng')
-const linkRegexp = XRegExp('<(?<linkUrl>https?:[^|>]+)(\\|(?<linkHtml>[^>]+))?>', 'ng')
-const mailToRegexp = XRegExp('<mailto:(?<mailTo>[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
-const subteamCommandRegexp = XRegExp('<!subteam\\^(?<subteamID>S[^|>]+)(\\|(?<subteamName>[^>]+))?>', 'ng')
-const commandRegexp = XRegExp('<!(?<commandLiteral>[^|>]+)(\\|(?<commandName>[^>]+))?>', 'ng')
+const userMentionRegExp = XRegExp.cache('<@(?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?>', 'ng')
+const channelMentionRegExp = XRegExp.cache('<#(?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?>', 'ng')
+const linkRegExp = XRegExp.cache('<(?<linkUrl>https?:[^|>]+)(\\|(?<linkHtml>[^>]+))?>', 'ng')
+const mailToRegExp = XRegExp.cache('<mailto:(?<mailTo>[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
+const subteamCommandRegExp = XRegExp.cache('<!subteam\\^(?<subteamID>S[^|>]+)(\\|(?<subteamName>[^>]+))?>', 'ng')
+const commandRegExp = XRegExp.cache('<!(?<commandLiteral>[^|>]+)(\\|(?<commandName>[^>]+))?>', 'ng')
 const knownCommands = ['here', 'channel', 'group', 'everyone']
 
 const replaceUserName = (users) => ((match) => {
@@ -151,6 +74,137 @@ const replaceUserGroupName = (usergroups) => ((match) => {
   return match.toString()
 })
 
+const buildOpeningDelimiterRegExp = (delimiter, { spacePadded = false, escapeDelimiter = true } = {}) => {
+  const escapedDelimiter = escapeDelimiter ? XRegExp.escape(delimiter) : delimiter
+  return XRegExp.cache(
+    `${spacePadded ? '(?<openingCapturedWhitespace>^|\\s)' : ''}${escapedDelimiter}`,
+    'ns'
+  )
+}
+
+// We can't perform negative lookahead to capture the last consecutive delimiter
+// since delimiters can be more than once character long
+const buildClosingDelimiterRegExp = (delimiter, { spacePadded = false, escapeDelimiter = true } = {}) => {
+  const escapedDelimiter = escapeDelimiter ? XRegExp.escape(delimiter) : delimiter
+  return XRegExp.cache(
+    `${escapedDelimiter}${spacePadded ? '(?<closingCapturedWhitespace>\\s|$)' : ''}`,
+    'ns'
+  )
+}
+
+const replaceInWindows = (
+  text,
+  delimiterLiteral,
+  replacementOpeningLiteral,
+  replacementClosingLiteral,
+  closedTagWindows,
+  options = {},
+  tagWindowIndex = 0,
+  currentTagWindowOffset = 0
+) => {
+  if (tagWindowIndex >= closedTagWindows.length) {
+    return [text, closedTagWindows]
+  }
+
+  const partitionWindowOnMatch = options.partitionWindowOnMatch
+  const spacePadded = options.spacePadded
+  const asymmetric = options.endingPattern
+  const replaceNewlines = options.replaceNewlines
+
+  const openingDelimiterRegExp = buildOpeningDelimiterRegExp(delimiterLiteral, { spacePadded })
+  const closingDelimiterRegExp = asymmetric ? buildClosingDelimiterRegExp(options.endingPattern, { escapeDelimiter: false }) : buildClosingDelimiterRegExp(delimiterLiteral, { spacePadded })
+
+  const currentClosedTagWindow = closedTagWindows[tagWindowIndex]
+  const openingMatch = XRegExp.exec(text, openingDelimiterRegExp, currentClosedTagWindow[0] + currentTagWindowOffset)
+
+  if (openingMatch && openingMatch.index < currentClosedTagWindow[1]) {
+    const closingDelimiterLength = asymmetric ? 0 : delimiterLiteral.length
+    const closingMatchMaxIndex = (tagWindowIndex === closedTagWindows.length - 1 ? currentClosedTagWindow[1] + 1 : currentClosedTagWindow[1]) - closingDelimiterLength + 1
+
+    // Look ahead at the next index to greedily capture as much inside the delimiters as possible
+    let closingMatch = XRegExp.exec(text, closingDelimiterRegExp, openingMatch.index + delimiterLiteral.length)
+    let nextClosingMatch = closingMatch && XRegExp.exec(text, closingDelimiterRegExp, closingMatch.index + 1)
+    while (nextClosingMatch) {
+      // If the next match is still in the window and there is not whitespace in between the two, use the later one
+      const nextWhitespace = XRegExp.exec(text, whitespaceRegExp, closingMatch.index + delimiterLiteral.length)
+      const crossedWhitespace = nextWhitespace && nextWhitespace.index < closingMatchMaxIndex
+      if (nextClosingMatch.index >= closingMatchMaxIndex || crossedWhitespace) {
+        break
+      }
+      closingMatch = nextClosingMatch
+      nextClosingMatch = XRegExp.exec(text, closingDelimiterRegExp, closingMatch.index + 1)
+    }
+
+    if (closingMatch && closingMatch.index < closingMatchMaxIndex) {
+      const textBeforeWindow = text.slice(0, currentClosedTagWindow[0])
+      const textAfterWindow = text.slice(currentClosedTagWindow[1])
+
+      const openingReplacementString = `${spacePadded ? openingMatch.openingCapturedWhitespace : ''}${replacementOpeningLiteral}`
+      const closingReplacementString = `${replacementClosingLiteral}${spacePadded ? closingMatch.closingCapturedWhitespace : ''}${asymmetric ? closingMatch[0] : ''}`
+
+      const textBetweenDelimiters = text.slice(openingMatch.index + openingMatch[0].length, closingMatch.index)
+      const replacedTextBetweenDelimiters = replaceNewlines ? XRegExp.replace(textBetweenDelimiters, newlineRegExp, lineBreakTagLiteral) : textBetweenDelimiters
+      const replacedWindowText = [
+        text.slice(currentClosedTagWindow[0], openingMatch.index),
+        openingReplacementString,
+        replacedTextBetweenDelimiters,
+        closingReplacementString,
+        text.slice(closingMatch.index + closingMatch[0].length)
+      ].join('')
+
+      const windowOffset = replacementOpeningLiteral.length + replacementClosingLiteral.length - (2 * delimiterLiteral.length) + replacedTextBetweenDelimiters.length - textBetweenDelimiters.length
+      const newUpperWindowLimit = currentClosedTagWindow[1] + windowOffset
+
+      const nextWindowIndex = partitionWindowOnMatch ? tagWindowIndex + 1 : tagWindowIndex
+      const nextTagWindowOffset = partitionWindowOnMatch ? 0 : closingMatch.index + replacementClosingLiteral.length
+      if (partitionWindowOnMatch) {
+        // Split the current window into two by the occurrence of the delimiter pair
+        currentClosedTagWindow[1] = openingMatch.index
+        closedTagWindows.splice(tagWindowIndex + 1, 0, [closingMatch.index + replacementClosingLiteral.length, newUpperWindowLimit])
+      }
+      closedTagWindows.slice(nextWindowIndex + 1).forEach((tagWindow) => {
+        tagWindow[0] += windowOffset
+        tagWindow[1] += windowOffset
+      })
+
+      return replaceInWindows(
+        [textBeforeWindow, replacedWindowText, textAfterWindow].join(''),
+        delimiterLiteral,
+        replacementOpeningLiteral,
+        replacementClosingLiteral,
+        closedTagWindows,
+        options,
+        nextWindowIndex,
+        nextTagWindowOffset
+      )
+    }
+  }
+
+  return replaceInWindows(
+    text,
+    delimiterLiteral,
+    replacementOpeningLiteral,
+    replacementClosingLiteral,
+    closedTagWindows,
+    options,
+    tagWindowIndex + 1
+  )
+}
+
+const expandText = (text) => {
+  let expandedTextAndWindows
+  expandedTextAndWindows = [text, [[0, text.length]]]
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '```', codeDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows[1], { partitionWindowOnMatch: true, replaceNewlines: true })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '`', codeSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1], { partitionWindowOnMatch: true })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '*', boldOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1])
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '~', strikethroughOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1])
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '_', italicOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1], { spacePadded: true })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '&gt;&gt;&gt;', blockDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows[1], { endingPattern: '$', replaceNewlines: true })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '&gt;', blockSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1], { endingPattern: '\\n|$' })
+
+  return expandedTextAndWindows[0]
+}
+
 const escapeForSlack = (text, options = {}) => {
   const customEmoji = options.customEmoji || {}
   const users = options.users || {}
@@ -161,12 +215,12 @@ const escapeForSlack = (text, options = {}) => {
   const expandedText = markdown ? expandText(text || '') : text || ''
   return expandEmoji(
     XRegExp.replaceEach(expandedText, [
-      [userMentionRegexp, replaceUserName(users)],
-      [channelMentionRegexp, replaceChannelName(channels)],
-      [linkRegexp, ((match) => (`<a href="${match.linkUrl}" target="_blank" rel="noopener noreferrer">${match.linkHtml || match.linkUrl}</a>`))],
-      [mailToRegexp, ((match) => (`<a href="mailto:${match.mailTo}" target="_blank" rel="noopener noreferrer">${match.mailToName || match.mailTo}</a>`))],
-      [subteamCommandRegexp, replaceUserGroupName(usergroups)],
-      [commandRegexp, ((match) => {
+      [userMentionRegExp, replaceUserName(users)],
+      [channelMentionRegExp, replaceChannelName(channels)],
+      [linkRegExp, ((match) => (`<a href="${match.linkUrl}" target="_blank" rel="noopener noreferrer">${match.linkHtml || match.linkUrl}</a>`))],
+      [mailToRegExp, ((match) => (`<a href="mailto:${match.mailTo}" target="_blank" rel="noopener noreferrer">${match.mailToName || match.mailTo}</a>`))],
+      [subteamCommandRegExp, replaceUserGroupName(usergroups)],
+      [commandRegExp, ((match) => {
         if (match.commandLiteral && match.commandLiteral.startsWith('subteam')) {
           return match.toString()
         } else if (knownCommands.includes(match.commandLiteral)) {
@@ -185,7 +239,28 @@ const escapeForSlackWithMarkdown = (text, options = {}) => {
   return escapeForSlack(text, Object.assign({}, options, { markdown: true }))
 }
 
+const buildSlackHawkDownRegExps = () => {
+  return {
+    userMentionRegExp: userMentionRegExp,
+    channelMentionRegExp: channelMentionRegExp,
+    linkRegExp: linkRegExp,
+    mailToRegExp: mailToRegExp,
+    subteamCommandRegExp: subteamCommandRegExp,
+    boldOpeningDelimiterRegExp: buildOpeningDelimiterRegExp('*'),
+    boldClosingDelimiterRegExp: buildClosingDelimiterRegExp('*'),
+    italicsOpeningDelimiterRegExp: buildOpeningDelimiterRegExp('_', { spacePadded: true }),
+    italicsClosingDelimiterRegExp: buildClosingDelimiterRegExp('_', { spacePadded: true }),
+    strikethroughOpeningDelimiterRegExp: buildOpeningDelimiterRegExp('~'),
+    strikethroughClosingDelimiterRegExp: buildClosingDelimiterRegExp('~'),
+    blockDivOpeningDelimiterRegExp: buildOpeningDelimiterRegExp('&gt;&gt;&gt;'),
+    blockDivClosingDelimiterRegExp: buildClosingDelimiterRegExp('$', { escapeDelimiter: false }),
+    blockSpanOpeningDelimiterRegExp: buildOpeningDelimiterRegExp('&gt;'),
+    blockSpanClosingDelimiterRegExp: buildClosingDelimiterRegExp('\\n|$', { escapeDelimiter: false })
+  }
+}
+
 module.exports = {
   escapeForSlack: escapeForSlack,
-  escapeForSlackWithMarkdown: escapeForSlackWithMarkdown
+  escapeForSlackWithMarkdown: escapeForSlackWithMarkdown,
+  buildSlackHawkDownRegExps: buildSlackHawkDownRegExps
 }

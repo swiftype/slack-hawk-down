@@ -9,6 +9,14 @@ describe('markdown', () => {
     it('should convert newlines', () => {
       escapeForSlackWithMarkdown('```this is a code multiline\nwith newlines```').should.equal('<div class="slack_code">this is a code multiline<br>with newlines</div>')
     })
+
+    it('should greedily capture backticks', () => {
+      escapeForSlackWithMarkdown('````this is a code multiline with backticks````').should.equal('<div class="slack_code">`this is a code multiline with backticks`</div>')
+    })
+
+    it('should not capture whitespace', () => {
+      escapeForSlackWithMarkdown('```this is a code multiline``` ```and this is another```').should.equal('<div class="slack_code">this is a code multiline</div> <div class="slack_code">and this is another</div>')
+    })
   })
 
   describe('code inline', () => {
@@ -20,6 +28,10 @@ describe('markdown', () => {
   describe('bold', () => {
     it('should render an element', () => {
       escapeForSlackWithMarkdown('this is *bold*').should.equal('this is <span class="slack_bold">bold</span>')
+    })
+
+    it('should capture as much as possible', () => {
+      escapeForSlackWithMarkdown('this is *bold*with*more*asterisks*').should.equal('this is <span class="slack_bold">bold*with*more*asterisks</span>')
     })
   })
 
