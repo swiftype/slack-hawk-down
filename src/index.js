@@ -1,4 +1,4 @@
-import XRegExp from 'xregexp'
+import XRegExp from 'xregexp/src/index'
 import emoji from './emoji'
 
 /* eslint-disable no-template-curly-in-string */
