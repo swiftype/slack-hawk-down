@@ -33,4 +33,12 @@ describe('performance', () => {
       console.timeEnd('long_positive_input_match')
     })
   })
+
+  describe('many replacements', () => {
+    const input = fs.readFileSync(path.join(__dirname, 'fixtures/long_repetitive_block_quotes.txt'))
+    
+    it('should not run out of memory', () => {
+      escapeForSlackWithMarkdown(input)
+    })
+  })
 })
