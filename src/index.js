@@ -92,6 +92,14 @@ const buildClosingDelimiterRegExp = (delimiter, { spacePadded = false, escapeDel
   )
 }
 
+const incrementWindows = (windows, offset) => {
+  windows.forEach((tagWindow) => {
+    tagWindow[0] += offset
+    tagWindow[1] += offset
+  })
+  return windows
+}
+
 const replaceInWindows = (
   text,
   delimiterLiteral,
@@ -100,26 +108,45 @@ const replaceInWindows = (
   closedTagWindows,
   options = {},
   tagWindowIndex = 0,
-  currentTagWindowOffset = 0
+  tagWindowOffset = 0
 ) => {
-  if (tagWindowIndex >= closedTagWindows.length) {
-    return [text, closedTagWindows]
-  }
-
   const partitionWindowOnMatch = options.partitionWindowOnMatch
   const spacePadded = options.spacePadded
   const asymmetric = options.endingPattern
   const replaceNewlines = options.replaceNewlines
+  let maxReplacements = options.maxReplacements
 
   const openingDelimiterRegExp = buildOpeningDelimiterRegExp(delimiterLiteral, { spacePadded })
   const closingDelimiterRegExp = asymmetric ? buildClosingDelimiterRegExp(options.endingPattern, { escapeDelimiter: false }) : buildClosingDelimiterRegExp(delimiterLiteral, { spacePadded })
 
-  const currentClosedTagWindow = closedTagWindows[tagWindowIndex]
-  const openingMatch = XRegExp.exec(text, openingDelimiterRegExp, currentClosedTagWindow[0] + currentTagWindowOffset)
+  if (tagWindowIndex >= closedTagWindows.length || (maxReplacements && maxReplacements <= 0)) {
+    return {
+      text: text,
+      windows: closedTagWindows
+    }
+  }
 
-  if (openingMatch && openingMatch.index < currentClosedTagWindow[1]) {
+  const currentClosedTagWindow = closedTagWindows[tagWindowIndex]
+  const tagWindowStartIndex = currentClosedTagWindow[0]
+  const tagWindowEndIndex = currentClosedTagWindow[1]
+  if (tagWindowStartIndex >= tagWindowEndIndex || tagWindowStartIndex + tagWindowOffset > tagWindowEndIndex) {
+    return replaceInWindows(
+      text,
+      delimiterLiteral,
+      replacementOpeningLiteral,
+      replacementClosingLiteral,
+      closedTagWindows,
+      options,
+      tagWindowIndex + 1
+    )
+  }
+
+  const openingMatch = XRegExp.exec(text, openingDelimiterRegExp, tagWindowStartIndex + tagWindowOffset)
+
+  if (openingMatch && openingMatch.index < tagWindowEndIndex) {
     const closingDelimiterLength = asymmetric ? 0 : delimiterLiteral.length
-    const closingMatchMaxIndex = (tagWindowIndex === closedTagWindows.length - 1 ? currentClosedTagWindow[1] + 1 : currentClosedTagWindow[1]) - closingDelimiterLength + 1
+    // Allow matching the end of the string if on the last window
+    const closingMatchMaxIndex = (tagWindowIndex === closedTagWindows.length - 1 && tagWindowEndIndex === text.length ? tagWindowEndIndex + 1 : tagWindowEndIndex) - closingDelimiterLength + 1
 
     // Look ahead at the next index to greedily capture as much inside the delimiters as possible
     let closingMatch = XRegExp.exec(text, closingDelimiterRegExp, openingMatch.index + delimiterLiteral.length)
@@ -136,44 +163,45 @@ const replaceInWindows = (
     }
 
     if (closingMatch && closingMatch.index < closingMatchMaxIndex) {
-      const textBeforeWindow = text.slice(0, currentClosedTagWindow[0])
-      const textAfterWindow = text.slice(currentClosedTagWindow[1])
+      const afterDelimitersIndex = closingMatch.index + closingMatch[0].length
+      const textBeforeDelimiter = text.slice(0, openingMatch.index)
+      const textAfterDelimiter = text.slice(afterDelimitersIndex)
 
       const openingReplacementString = `${spacePadded ? openingMatch.openingCapturedWhitespace : ''}${replacementOpeningLiteral}`
       const closingReplacementString = `${replacementClosingLiteral}${spacePadded ? closingMatch.closingCapturedWhitespace : ''}${asymmetric ? closingMatch[0] : ''}`
 
       const textBetweenDelimiters = text.slice(openingMatch.index + openingMatch[0].length, closingMatch.index)
       const replacedTextBetweenDelimiters = replaceNewlines ? XRegExp.replace(textBetweenDelimiters, newlineRegExp, lineBreakTagLiteral) : textBetweenDelimiters
-      const replacedWindowText = [
-        text.slice(currentClosedTagWindow[0], openingMatch.index),
+
+      const replacedDelimiterText = [
         openingReplacementString,
         replacedTextBetweenDelimiters,
         closingReplacementString,
-        text.slice(closingMatch.index + closingMatch[0].length)
       ].join('')
 
-      const windowOffset = replacementOpeningLiteral.length + replacementClosingLiteral.length - (2 * delimiterLiteral.length) + replacedTextBetweenDelimiters.length - textBetweenDelimiters.length
-      const newUpperWindowLimit = currentClosedTagWindow[1] + windowOffset
+      const delimiterReplacementLength = delimiterLiteral.length + closingDelimiterLength
+      const windowOffset = replacementOpeningLiteral.length + replacementClosingLiteral.length - delimiterReplacementLength + replacedTextBetweenDelimiters.length - textBetweenDelimiters.length
+      const newUpperWindowLimit = tagWindowEndIndex + windowOffset
 
       const nextWindowIndex = partitionWindowOnMatch ? tagWindowIndex + 1 : tagWindowIndex
-      const nextTagWindowOffset = partitionWindowOnMatch ? 0 : closingMatch.index + replacementClosingLiteral.length
+      const nextTagWindowOffset = partitionWindowOnMatch ? 0 : afterDelimitersIndex + windowOffset - tagWindowStartIndex + 1
       if (partitionWindowOnMatch) {
         // Split the current window into two by the occurrence of the delimiter pair
         currentClosedTagWindow[1] = openingMatch.index
-        closedTagWindows.splice(tagWindowIndex + 1, 0, [closingMatch.index + replacementClosingLiteral.length, newUpperWindowLimit])
+        closedTagWindows.splice(nextWindowIndex, 0, [closingMatch.index + closingDelimiterLength + windowOffset, newUpperWindowLimit])
+      } else {
+        currentClosedTagWindow[1] = newUpperWindowLimit
       }
-      closedTagWindows.slice(nextWindowIndex + 1).forEach((tagWindow) => {
-        tagWindow[0] += windowOffset
-        tagWindow[1] += windowOffset
-      })
+      incrementWindows(closedTagWindows.slice(nextWindowIndex + 1), windowOffset)
+      maxReplacements -= 1
 
       return replaceInWindows(
-        [textBeforeWindow, replacedWindowText, textAfterWindow].join(''),
+        [textBeforeDelimiter, replacedDelimiterText, textAfterDelimiter].join(''),
         delimiterLiteral,
         replacementOpeningLiteral,
         replacementClosingLiteral,
         closedTagWindows,
-        options,
+        Object.assign({}, options, { maxReplacements }),
         nextWindowIndex,
         nextTagWindowOffset
       )
@@ -193,16 +221,16 @@ const replaceInWindows = (
 
 const expandText = (text) => {
   let expandedTextAndWindows
-  expandedTextAndWindows = [text, [[0, text.length]]]
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '```', codeDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows[1], { partitionWindowOnMatch: true, replaceNewlines: true })
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '`', codeSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1], { partitionWindowOnMatch: true })
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '*', boldOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1])
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '~', strikethroughOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1])
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '_', italicOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1], { spacePadded: true })
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '&gt;&gt;&gt;', blockDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows[1], { endingPattern: '$', replaceNewlines: true })
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows[0], '&gt;', blockSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows[1], { endingPattern: '\\n|$' })
+  expandedTextAndWindows = { text: text, windows: [[0, text.length]] }
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '```', codeDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows.windows, { partitionWindowOnMatch: true, replaceNewlines: true })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '`', codeSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { partitionWindowOnMatch: true })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '*', boldOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { maxReplacements: 100 })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '~', strikethroughOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { maxReplacements: 100 })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '_', italicOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { spacePadded: true, maxReplacements: 100 })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '&gt;&gt;&gt;', blockDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows.windows, { endingPattern: '$', replaceNewlines: true, maxReplacements: 100 })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '&gt;', blockSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { endingPattern: '\\n|$', maxReplacements: 100 })
 
-  return expandedTextAndWindows[0]
+  return expandedTextAndWindows.text
 }
 
 const escapeForSlack = (text, options = {}) => {
