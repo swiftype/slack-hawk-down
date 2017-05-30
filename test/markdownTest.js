@@ -17,6 +17,14 @@ describe('markdown', () => {
     it('should not capture whitespace', () => {
       escapeForSlackWithMarkdown('```this is a code multiline``` ```and this is another```').should.equal('<div class="slack_code">this is a code multiline</div> <div class="slack_code">and this is another</div>')
     })
+
+    it('should not apply markdown to text within a code block', () => {
+      escapeForSlackWithMarkdown('```this is a code multiline with *asterisks*```').should.equal('<div class="slack_code">this is a code multiline with *asterisks*</div>')
+    })
+
+    it('should not affect markdown after the code block', () => {
+      escapeForSlackWithMarkdown('```this is a code multiline``` with some *bold* text after it').should.equal('<div class="slack_code">this is a code multiline</div> with some <span class="slack_bold">bold</span> text after it')
+    })
   })
 
   describe('code inline', () => {
