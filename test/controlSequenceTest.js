@@ -11,7 +11,11 @@ describe('control sequences', () => {
     })
 
     it('should render the original value if user name is not present', () => {
-      escapeForSlack('<@U123>').should.equal('<@U123>')
+      escapeForSlack('<@U123>').should.equal('&lt;@U123&gt;')
+    })
+
+    it('should render the fallback text', () => {
+      escapeForSlack('<@U123|someone>').should.equal('@someone')
     })
   })
 
@@ -25,7 +29,7 @@ describe('control sequences', () => {
     })
 
     it('should render the original value if the channel name is not present', () => {
-      escapeForSlack('<#C123>').should.equal('<#C123>')
+      escapeForSlack('<#C123>').should.equal('&lt;#C123&gt;')
     })
   })
 
@@ -71,7 +75,7 @@ describe('control sequences', () => {
         })
 
         it('should render the original value if the channel name is not present', () => {
-          escapeForSlack('<!subteam^S123>').should.equal('<!subteam^S123>')
+          escapeForSlack('<!subteam^S123>').should.equal('&lt;!subteam^S123&gt;')
         })
       })
     })
