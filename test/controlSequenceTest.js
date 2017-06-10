@@ -17,6 +17,10 @@ describe('control sequences', () => {
     it('should render the fallback text', () => {
       escapeForSlack('<@U123|someone>').should.equal('@someone')
     })
+
+    it('should render the username literal', () => {
+      escapeForSlack('<@someone>').should.equal('@someone')
+    })
   })
 
   describe('channel mentions', () => {
@@ -30,6 +34,10 @@ describe('control sequences', () => {
 
     it('should render the original value if the channel name is not present', () => {
       escapeForSlack('<#C123>').should.equal('&lt;#C123&gt;')
+    })
+
+    it('should render the channel literal', () => {
+      escapeForSlack('<#channel>').should.equal('#channel')
     })
   })
 

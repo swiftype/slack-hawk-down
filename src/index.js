@@ -1,4 +1,3 @@
-import escapeHtml from 'escape-html'
 import XRegExp from 'xregexp/src/index'
 import emoji from './emoji'
 
@@ -43,28 +42,30 @@ const newlineRegExp = XRegExp.cache('\\n', 'nsg')
 const whitespaceRegExp = XRegExp.cache('\\s', 'ns')
 
 // https://api.slack.com/docs/message-formatting
-const userMentionRegExp = XRegExp.cache('<@(?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?>', 'ng')
-const channelMentionRegExp = XRegExp.cache('<#(?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?>', 'ng')
+const userMentionRegExp = XRegExp.cache('<@(((?<userID>U[^|>]+)(\\|(?<userName>[^>]+))?)|(?<userNameWithoutID>[^>]+))>', 'ng')
+const channelMentionRegExp = XRegExp.cache('<#(((?<channelID>C[^|>]+)(\\|(?<channelName>[^>]+))?)|(?<channelNameWithoutID>[^>]+))>', 'ng')
 const linkRegExp = XRegExp.cache('<(?<linkUrl>https?:[^|>]+)(\\|(?<linkHtml>[^>]+))?>', 'ng')
 const mailToRegExp = XRegExp.cache('<mailto:(?<mailTo>[^|>]+)(\\|(?<mailToName>[^>]+))?>', 'ng')
 const subteamCommandRegExp = XRegExp.cache('<!subteam\\^(?<subteamID>S[^|>]+)(\\|(?<subteamName>[^>]+))?>', 'ng')
 const commandRegExp = XRegExp.cache('<!(?<commandLiteral>[^|>]+)(\\|(?<commandName>[^>]+))?>', 'ng')
 const knownCommands = ['here', 'channel', 'group', 'everyone']
 
+const escapeTags = (string) => (['&lt;', string.substring(1, string.length - 1), '&gt;'].join(''))
+
 const replaceUserName = (users) => ((match) => {
-  const userName = match.userName || (match.userID && users && users[match.userID])
+  const userName = match.userName || match.userNameWithoutID || (match.userID && users && users[match.userID])
   if (userName) {
     return (`@${userName}`)
   }
-  return escapeHtml(match.toString())
+  return escapeTags(match.toString())
 })
 
 const replaceChannelName = (channels) => ((match) => {
-  const channelName = match.channelName || (match.channelID && channels && channels[match.channelID])
+  const channelName = match.channelName || match.channelNameWithoutID || (match.channelID && channels && channels[match.channelID])
   if (channelName) {
     return (`#${channelName}`)
   }
-  return escapeHtml(match.toString())
+  return escapeTags(match.toString())
 })
 
 const replaceUserGroupName = (usergroups) => ((match) => {
@@ -72,7 +73,7 @@ const replaceUserGroupName = (usergroups) => ((match) => {
   if (userGroupName) {
     return `${userGroupName}`
   }
-  return escapeHtml(match.toString())
+  return escapeTags(match.toString())
 })
 
 const buildOpeningDelimiterRegExp = (delimiter, { spacePadded = false, escapeDelimiter = true } = {}) => {
