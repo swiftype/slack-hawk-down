@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html'
 import XRegExp from 'xregexp/src/index'
 import emoji from './emoji'
 
@@ -55,7 +56,7 @@ const replaceUserName = (users) => ((match) => {
   if (userName) {
     return (`@${userName}`)
   }
-  return match.toString()
+  return escapeHtml(match.toString())
 })
 
 const replaceChannelName = (channels) => ((match) => {
@@ -63,7 +64,7 @@ const replaceChannelName = (channels) => ((match) => {
   if (channelName) {
     return (`#${channelName}`)
   }
-  return match.toString()
+  return escapeHtml(match.toString())
 })
 
 const replaceUserGroupName = (usergroups) => ((match) => {
@@ -71,7 +72,7 @@ const replaceUserGroupName = (usergroups) => ((match) => {
   if (userGroupName) {
     return `${userGroupName}`
   }
-  return match.toString()
+  return escapeHtml(match.toString())
 })
 
 const buildOpeningDelimiterRegExp = (delimiter, { spacePadded = false, escapeDelimiter = true } = {}) => {
