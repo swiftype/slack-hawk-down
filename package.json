@@ -31,6 +31,7 @@
     "xregexp": "^3.2.0"
   },
   "devDependencies": {
+    "babel-cli": "^6.26.0",
     "babel-core": "^6.23.0",
     "babel-preset-babili": "0.0.12",
     "babel-preset-env": "^1.2.1",
@@ -70,6 +71,7 @@
       "max-len": 0,
       "import/no-mutable-exports": 0,
       "arrow-body-style": 0,
+      "linebreak-style": 0,
       "no-return-assign": 0,
       "object-shorthand": 0,
       "newline-per-chained-call": 0,
