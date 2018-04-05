@@ -2,3 +2,4 @@ node_modules
 dist
 src/emoji.js
 npm-debug.log
+yarn-error.log
