@@ -112,11 +112,13 @@ const replaceInWindows = (
   tagWindowIndex = 0,
   tagWindowOffset = 0
 ) => {
-  const partitionWindowOnMatch = options.partitionWindowOnMatch
-  const spacePadded = options.spacePadded
-  const asymmetric = options.endingPattern
-  const replaceNewlines = options.replaceNewlines
-  let maxReplacements = options.maxReplacements
+  const {
+    partitionWindowOnMatch,
+    spacePadded,
+    asymmetric,
+    replaceNewlines
+  } = options
+  let { maxReplacements } = options
 
   const openingDelimiterRegExp = buildOpeningDelimiterRegExp(delimiterLiteral, { spacePadded })
   const closingDelimiterRegExp = asymmetric ? buildClosingDelimiterRegExp(options.endingPattern, { escapeDelimiter: false }) : buildClosingDelimiterRegExp(delimiterLiteral, { spacePadded })
@@ -253,9 +255,11 @@ const escapeForSlack = (text, options = {}) => {
       [commandRegExp, ((match) => {
         if (match.commandLiteral && match.commandLiteral.startsWith('subteam')) {
           return match.toString()
-        } else if (knownCommands.includes(match.commandLiteral)) {
+        }
+        if (knownCommands.includes(match.commandLiteral)) {
           return `@${match.commandLiteral}`
-        } else if (match.commandName) {
+        }
+        if (match.commandName) {
           return `<${match.commandName}>`
         }
         return `<${match.commandLiteral}>`
