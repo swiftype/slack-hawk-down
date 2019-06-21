@@ -1,4 +1,4 @@
-import XRegExp from 'xregexp/src/index'
+import XRegExp from 'xregexp'
 import emoji from './emoji'
 
 /* eslint-disable no-template-curly-in-string */
@@ -231,8 +231,13 @@ const expandText = (text) => {
   expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '*', boldOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { maxReplacements: 100 })
   expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '~', strikethroughOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { maxReplacements: 100 })
   expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '_', italicOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { spacePadded: true, maxReplacements: 100 })
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '&gt;&gt;&gt;', blockDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows.windows, { endingPattern: '$', replaceNewlines: true, maxReplacements: 100 })
-  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '&gt;', blockSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { endingPattern: '\\n|$', maxReplacements: 100 })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '&gt;&gt;&gt;', blockDivOpeningPatternString, closingDivPatternString, expandedTextAndWindows.windows, {
+    asymmetric: true,
+    endingPattern: '$',
+    replaceNewlines: true,
+    maxReplacements: 100
+  })
+  expandedTextAndWindows = replaceInWindows(expandedTextAndWindows.text, '&gt;', blockSpanOpeningPatternString, closingSpanPatternString, expandedTextAndWindows.windows, { asymmetric: true, endingPattern: '\\n|$', maxReplacements: 100 })
 
   return expandedTextAndWindows.text
 }
