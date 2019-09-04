@@ -5,7 +5,7 @@ import emoji from './emoji'
 
 const expandEmoji = (text, customEmoji) => {
   const allEmoji = Object.assign({}, emoji, customEmoji)
-  return text.replace(/:(\S+):/, ((match, originalKey) => {
+  return text.replace(/:(\S+):/g, ((match, originalKey) => {
     const aliasPattern = /alias:(\S+)/
     let key = originalKey
     let emojiValue
